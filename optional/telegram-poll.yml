@@ -1,0 +1,59 @@
+name: Telegram Council (polling)
+
+# OPTIONAL alternative to the relay: no extra hosting, but slower.
+# To use it: copy this file to .github/workflows/ and do NOT register a Telegram webhook
+# (getUpdates and webhooks are mutually exclusive).
+#
+# GitHub runs scheduled workflows at most every 5 minutes and often a few minutes late,
+# so expect replies after roughly 5-15 minutes. Scheduled workflows in a public repo are
+# switched off after 60 days without repository activity.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-council-poll
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch pending Telegram messages, run the council, reply
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_CHAT_IDS: ${{ secrets.TELEGRAM_ALLOWED_CHAT_IDS }}
+          ANTHROPIC_API_KEY_A: ${{ secrets.ANTHROPIC_API_KEY_A }}
+          ANTHROPIC_API_KEY_B: ${{ secrets.ANTHROPIC_API_KEY_B }}
+          OPENAI_API_KEY_A: ${{ secrets.OPENAI_API_KEY_A }}
+          OPENAI_API_KEY_B: ${{ secrets.OPENAI_API_KEY_B }}
+          GEMINI_API_KEY_A: ${{ secrets.GEMINI_API_KEY_A }}
+          GEMINI_API_KEY_B: ${{ secrets.GEMINI_API_KEY_B }}
+          CLAUDE_A_MODEL: ${{ vars.CLAUDE_A_MODEL }}
+          CLAUDE_B_MODEL: ${{ vars.CLAUDE_B_MODEL }}
+          CHATGPT_A_MODEL: ${{ vars.CHATGPT_A_MODEL }}
+          CHATGPT_B_MODEL: ${{ vars.CHATGPT_B_MODEL }}
+          GEMINI_A_MODEL: ${{ vars.GEMINI_A_MODEL }}
+          GEMINI_B_MODEL: ${{ vars.GEMINI_B_MODEL }}
+          MASTER_CHAIN: ${{ vars.MASTER_CHAIN }}
+          REVIEWER_AGENT: ${{ vars.REVIEWER_AGENT }}
+          REVIEW_ENABLED: ${{ vars.REVIEW_ENABLED }}
+          DISABLED_AGENTS: ${{ vars.DISABLED_AGENTS }}
+          ROLE_RESEARCH: ${{ vars.ROLE_RESEARCH }}
+          ROLE_QUICK: ${{ vars.ROLE_QUICK }}
+          ROLE_CODE: ${{ vars.ROLE_CODE }}
+          ROLE_WRITING: ${{ vars.ROLE_WRITING }}
+          ROLE_ANALYSIS: ${{ vars.ROLE_ANALYSIS }}
+        run: node scripts/council_cli.js poll

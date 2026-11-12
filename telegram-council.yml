@@ -1,0 +1,84 @@
+name: Telegram Council
+
+# A Telegram message becomes the prompt, the multi-agent council runs, the answer goes back to the same chat.
+#
+# Triggers
+#   repository_dispatch  event type "telegram_prompt", sent by the relay in relay/ (instant)
+#   workflow_dispatch    manual run from the Actions tab, handy for testing
+
+on:
+  repository_dispatch:
+    types: [telegram_prompt]
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: Prompt to run
+        required: true
+        type: string
+      chat_id:
+        description: Telegram chat id that receives the reply
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # one group per Telegram update: messages never cancel each other
+  group: telegram-council-${{ github.event.client_payload.update_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  council:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run council and reply on Telegram
+        id: council
+        # The prompt reaches the script through env vars only. It is never interpolated into the shell script.
+        env:
+          PROMPT: ${{ github.event.client_payload.prompt || inputs.prompt }}
+          CHAT_ID: ${{ github.event.client_payload.chat_id || inputs.chat_id }}
+          MESSAGE_ID: ${{ github.event.client_payload.message_id }}
+          UPDATE_ID: ${{ github.event.client_payload.update_id }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_CHAT_IDS: ${{ secrets.TELEGRAM_ALLOWED_CHAT_IDS }}
+          ANTHROPIC_API_KEY_A: ${{ secrets.ANTHROPIC_API_KEY_A }}
+          ANTHROPIC_API_KEY_B: ${{ secrets.ANTHROPIC_API_KEY_B }}
+          OPENAI_API_KEY_A: ${{ secrets.OPENAI_API_KEY_A }}
+          OPENAI_API_KEY_B: ${{ secrets.OPENAI_API_KEY_B }}
+          GEMINI_API_KEY_A: ${{ secrets.GEMINI_API_KEY_A }}
+          GEMINI_API_KEY_B: ${{ secrets.GEMINI_API_KEY_B }}
+          # optional tuning: Settings > Secrets and variables > Actions > Variables (blank = default)
+          CLAUDE_A_MODEL: ${{ vars.CLAUDE_A_MODEL }}
+          CLAUDE_B_MODEL: ${{ vars.CLAUDE_B_MODEL }}
+          CHATGPT_A_MODEL: ${{ vars.CHATGPT_A_MODEL }}
+          CHATGPT_B_MODEL: ${{ vars.CHATGPT_B_MODEL }}
+          GEMINI_A_MODEL: ${{ vars.GEMINI_A_MODEL }}
+          GEMINI_B_MODEL: ${{ vars.GEMINI_B_MODEL }}
+          MASTER_CHAIN: ${{ vars.MASTER_CHAIN }}
+          REVIEWER_AGENT: ${{ vars.REVIEWER_AGENT }}
+          REVIEW_ENABLED: ${{ vars.REVIEW_ENABLED }}
+          DISABLED_AGENTS: ${{ vars.DISABLED_AGENTS }}
+          ROLE_RESEARCH: ${{ vars.ROLE_RESEARCH }}
+          ROLE_QUICK: ${{ vars.ROLE_QUICK }}
+          ROLE_CODE: ${{ vars.ROLE_CODE }}
+          ROLE_WRITING: ${{ vars.ROLE_WRITING }}
+          ROLE_ANALYSIS: ${{ vars.ROLE_ANALYSIS }}
+        run: node scripts/council_cli.js run
+
+      - name: Tell Telegram the run failed
+        if: failure() && steps.council.outputs.notified != 'true'
+        env:
+          CHAT_ID: ${{ github.event.client_payload.chat_id || inputs.chat_id }}
+          MESSAGE_ID: ${{ github.event.client_payload.message_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_CHAT_IDS: ${{ secrets.TELEGRAM_ALLOWED_CHAT_IDS }}
+        run: node scripts/council_cli.js fail

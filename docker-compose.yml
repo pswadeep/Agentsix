@@ -1,0 +1,36 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"          # n8n editor — this machine only
+    env_file: .env                     # API keys, Telegram token, secrets
+    environment:
+      - GENERIC_TIMEZONE=Asia/Kolkata
+      - TZ=Asia/Kolkata
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false   # lets the Code nodes read the keys from .env
+      - N8N_RUNNERS_TASK_TIMEOUT=900         # long multi-agent runs are fine
+      - N8N_SECURE_COOKIE=false              # editor is served over plain http on localhost
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=48           # hours
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./workflows:/import:ro
+
+  web:
+    image: node:22-alpine
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "server.js"]
+    ports:
+      - "127.0.0.1:8080:8080"          # the localhost console — this machine only
+    env_file: .env
+    environment:
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/agents-prompt
+    volumes:
+      - ./web:/app
+    depends_on:
+      - n8n
+
+volumes:
+  n8n_data:

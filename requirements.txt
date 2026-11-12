@@ -1,0 +1,4 @@
+# Python dependencies. Only needed to rebuild the architecture PDF:
+#   python3 scripts/build_pdf.py
+# The n8n workflow, web console, GitHub Actions pipeline and tests are Node-only (Node 18+) and need no Python.
+reportlab~=5.0
